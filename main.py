@@ -1,6 +1,6 @@
 import json
 import ollama
-
+import re
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -61,11 +61,42 @@ def extract(data: RequestBody):
             date="1970-01-01",
         )
 
-    # ---------- Regex fallback ----------
+    # ---------------- REGEX FALLBACK ----------------
+
+    # Vendor
     vendor = ""
-    m = re.search(r"(Acme-[A-Za-z0-9]+(?:\s+[A-Za-z0-9.&-]+)*)", data.text)
+    m = re.search(r"(Acme-[A-Za-z0-9]+(?:\s+[A-Za-z0-9.&\-, ]+)*)", data.text)
     if m:
-        vendor = m.group(1)
+        vendor = m.group(1).strip()
+
+    # Amount
+    amount = 0.0
+
+    patterns = [
+        r"(?i)(?:total\s+due|amount\s+due|amount\s+payable|balance\s+due|grand\s+total|invoice\s+total|total)\D*(\d+(?:\.\d{1,2})?)",
+        r"(?i)\b(?:USD|EUR|GBP)\b\s*(\d+(?:\.\d{1,2})?)",
+        r"(?i)(\d+(?:\.\d{1,2})?)\s*\b(?:USD|EUR|GBP)\b",
+    ]
+
+    for p in patterns:
+        m = re.search(p, data.text)
+        if m:
+            amount = float(m.group(1))
+            break
+
+    # Currency
+    currency = ""
+    m = re.search(r"\b(USD|EUR|GBP)\b", data.text, re.I)
+    if m:
+        currency = m.group(1).upper()
+
+    # Date
+    date = ""
+    m = re.search(r"\b(20\d{2}-\d{2}-\d{2})\b", data.text)
+    if m:
+        date = m.group(1)
+
+    # ---------------- OLLAMA ----------------
 
     try:
         response = ollama.chat(
@@ -86,21 +117,21 @@ def extract(data: RequestBody):
         result = json.loads(response["message"]["content"])
 
         return Invoice(
-            vendor=vendor if vendor else result.get("vendor", ""),
-            amount=float(result.get("amount", 0)),
-            currency=result.get("currency", "USD").upper(),
-            date=result.get("date", "1970-01-01"),
+            vendor=vendor or result.get("vendor", ""),
+            amount=amount if amount else float(result.get("amount", 0)),
+            currency=currency or result.get("currency", "USD").upper(),
+            date=date or result.get("date", "1970-01-01"),
         )
 
     except Exception:
         return Invoice(
             vendor=vendor,
-            amount=0,
-            currency="USD",
-            date="1970-01-01",
+            amount=amount,
+            currency=currency if currency else "USD",
+            date=date if date else "1970-01-01",
         )
 
-import re
+
 
 @app.post("/v1/chat/completions")
 async def chat_completions(request: Request):
