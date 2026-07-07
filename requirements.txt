@@ -1,2 +1,5 @@
 fastapi
 uvicorn
+ollama
+httpx
+pydantic
