@@ -61,30 +61,38 @@ def extract(data: RequestBody):
             date="1970-01-01",
         )
 
-    response = ollama.chat(
-        model="llama3.2:latest",
-        format="json",
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": data.text,
-            },
-        ],
-    )
+    try:
+        response = ollama.chat(
+            model="llama3.2:latest",
+            format="json",
+            messages=[
+                {
+                    "role": "system",
+                    "content": SYSTEM_PROMPT,
+                },
+                {
+                    "role": "user",
+                    "content": data.text,
+                },
+            ],
+        )
 
-    result = json.loads(response["message"]["content"])
+        result = json.loads(response["message"]["content"])
 
-    return Invoice(
-        vendor=result.get("vendor", ""),
-        amount=float(result.get("amount", 0)),
-        currency=result.get("currency", "").upper(),
-        date=result.get("date", ""),
-    )
+        return Invoice(
+            vendor=result.get("vendor", ""),
+            amount=float(result.get("amount", 0)),
+            currency=result.get("currency", "USD").upper(),
+            date=result.get("date", "1970-01-01"),
+        )
 
+    except Exception:
+        return Invoice(
+            vendor="",
+            amount=0,
+            currency="USD",
+            date="1970-01-01",
+        )
 
 
 import re
