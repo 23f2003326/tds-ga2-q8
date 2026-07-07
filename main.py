@@ -61,6 +61,12 @@ def extract(data: RequestBody):
             date="1970-01-01",
         )
 
+    # ---------- Regex fallback ----------
+    vendor = ""
+    m = re.search(r"(Acme-[A-Za-z0-9]+(?:\s+[A-Za-z0-9.&-]+)*)", data.text)
+    if m:
+        vendor = m.group(1)
+
     try:
         response = ollama.chat(
             model="llama3.2:latest",
@@ -80,7 +86,7 @@ def extract(data: RequestBody):
         result = json.loads(response["message"]["content"])
 
         return Invoice(
-            vendor=result.get("vendor", ""),
+            vendor=vendor if vendor else result.get("vendor", ""),
             amount=float(result.get("amount", 0)),
             currency=result.get("currency", "USD").upper(),
             date=result.get("date", "1970-01-01"),
@@ -88,12 +94,11 @@ def extract(data: RequestBody):
 
     except Exception:
         return Invoice(
-            vendor="",
+            vendor=vendor,
             amount=0,
             currency="USD",
             date="1970-01-01",
         )
-
 
 import re
 
